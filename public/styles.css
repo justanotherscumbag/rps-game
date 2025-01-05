@@ -1,0 +1,144 @@
+/* Card animations */
+.card {
+    transition: all 0.3s ease;
+    transform-style: preserve-3d;
+}
+
+.card:hover {
+    transform: translateY(-5px) scale(1.02);
+}
+
+.card.played {
+    transform: scale(0.9);
+    opacity: 0.7;
+}
+
+/* Confetti animation */
+.confetti-piece {
+    position: absolute;
+    width: 10px;
+    height: 30px;
+    background: #ffd300;
+    top: -10px;
+    opacity: 0;
+}
+
+.confetti-piece:nth-child(1) {
+    left: 7%;
+    transform: rotate(-40deg);
+    animation: makeItRain 1000ms infinite ease-out;
+    animation-delay: 182ms;
+    animation-duration: 1116ms;
+}
+
+.confetti-piece:nth-child(2) {
+    left: 14%;
+    transform: rotate(4deg);
+    animation: makeItRain 1000ms infinite ease-out;
+    animation-delay: 161ms;
+    animation-duration: 1076ms;
+}
+
+/* Add more confetti pieces with different colors and animations */
+.confetti-piece:nth-child(3) { background: #ff0000; }
+.confetti-piece:nth-child(4) { background: #00ff00; }
+.confetti-piece:nth-child(5) { background: #0000ff; }
+
+@keyframes makeItRain {
+    from {
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+    to {
+        transform: translateY(350px);
+    }
+}
+
+/* Card count badge */
+.card-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: rgba(139, 92, 246, 0.9);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Game board animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.game-board {
+    animation: fadeIn 0.5s ease-out;
+}
+
+.hand {
+    animation: slideIn 0.5s ease-out;
+}
+
+/* Result message animations */
+.result-message {
+    animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes popIn {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Card flip animation */
+.card-flip {
+    perspective: 1000px;
+}
+
+.card-flip-inner {
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.card-flip.flipped .card-flip-inner {
+    transform: rotateY(180deg);
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+    .game-board {
+        grid-template-columns: 1fr;
+    }
+    
+    .hand {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}
