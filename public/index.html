@@ -4,14 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rock Paper Scissors</title>
+    <!-- Add Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel -->
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background: linear-gradient(to bottom, #4B0082, #1a1a1a);
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+    </style>
 </head>
-<body class="bg-gray-900">
+<body>
     <div id="root"></div>
-    <script type="text/babel" src="/components/RockPaperScissors.js"></script>
+
+    <!-- Game Component -->
+    <script type="text/babel" src="components/RockPaperScissors.js"></script>
+    <!-- Main App -->
     <script type="text/babel">
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(
