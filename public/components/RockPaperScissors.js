@@ -1,12 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { HandRock, HandPaper, Scissors, Copy, Crown } from 'lucide-react';
-
 const RockPaperScissors = () => {
-  const [gameState, setGameState] = useState({
+  const [gameState, setGameState] = React.useState({
     gameId: null,
     playerId: null,
     status: 'initial', // initial, waiting, playing, finished
@@ -16,11 +9,11 @@ const RockPaperScissors = () => {
     opponentScore: 0,
   });
 
-  const [socket, setSocket] = useState(null);
-  const [joinGameId, setJoinGameId] = useState('');
-  const [message, setMessage] = useState(null);
+  const [socket, setSocket] = React.useState(null);
+  const [joinGameId, setJoinGameId] = React.useState('');
+  const [message, setMessage] = React.useState(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
     const ws = new WebSocket(wsUrl);
@@ -44,6 +37,7 @@ const RockPaperScissors = () => {
           playerId: data.playerId,
           status: 'waiting'
         }));
+        setMessage('Game created! Share the Game ID with your opponent.');
         break;
 
       case 'game_started':
@@ -51,11 +45,11 @@ const RockPaperScissors = () => {
           ...prev,
           status: 'playing'
         }));
-        setMessage({ type: 'success', text: 'Game started! Make your move.' });
+        setMessage('Game started! Make your move.');
         break;
 
       case 'waiting_for_move':
-        setMessage({ type: 'info', text: "Waiting for opponent's move..." });
+        setMessage("Waiting for opponent's move...");
         break;
 
       case 'game_result':
@@ -71,14 +65,11 @@ const RockPaperScissors = () => {
           opponentScore: prev.opponentScore + (!isWinner && !isTie ? 1 : 0)
         }));
 
-        setMessage({
-          type: isWinner ? 'success' : isTie ? 'info' : 'error',
-          text: isTie ? "It's a tie!" : isWinner ? 'You win!' : 'Opponent wins!'
-        });
+        setMessage(isTie ? "It's a tie!" : isWinner ? 'You win!' : 'Opponent wins!');
         break;
 
       case 'player_disconnected':
-        setMessage({ type: 'error', text: 'Opponent disconnected. Please start a new game.' });
+        setMessage('Opponent disconnected. Please start a new game.');
         setGameState(prev => ({ ...prev, status: 'initial' }));
         break;
     }
@@ -106,7 +97,7 @@ const RockPaperScissors = () => {
 
   const copyGameId = () => {
     navigator.clipboard.writeText(gameState.gameId);
-    setMessage({ type: 'success', text: 'Game ID copied to clipboard!' });
+    setMessage('Game ID copied to clipboard!');
   };
 
   const startNewRound = () => {
@@ -119,136 +110,106 @@ const RockPaperScissors = () => {
     setMessage(null);
   };
 
-  const getChoiceIcon = (choice, size = 24) => {
-    switch (choice) {
-      case 'rock':
-        return <HandRock size={size} />;
-      case 'paper':
-        return <HandPaper size={size} />;
-      case 'scissors':
-        return <Scissors size={size} />;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 p-4 flex items-center justify-center">
-      <Card className="w-full max-w-2xl bg-white/5 backdrop-blur-sm text-white">
-        <CardHeader className="text-center border-b border-white/10">
-          <CardTitle className="text-3xl font-bold">Rock Paper Scissors</CardTitle>
-          <CardDescription className="text-gray-300">
-            {gameState.status === 'initial' ? 'Create or join a game to start playing' : 
-             gameState.status === 'waiting' ? 'Waiting for opponent...' :
-             'Choose your move'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-6">
-          {message && (
-            <Alert className={`mb-6 ${
-              message.type === 'success' ? 'bg-green-500/20 border-green-500/50' :
-              message.type === 'error' ? 'bg-red-500/20 border-red-500/50' :
-              'bg-blue-500/20 border-blue-500/50'
-            }`}>
-              <AlertTitle>{message.text}</AlertTitle>
-            </Alert>
-          )}
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <div className="max-w-2xl mx-auto bg-gray-800 rounded-lg p-6 shadow-lg">
+        <h1 className="text-3xl font-bold text-center mb-6">Rock Paper Scissors</h1>
+        
+        {message && (
+          <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 mb-6 text-center">
+            {message}
+          </div>
+        )}
 
-          {gameState.status === 'initial' && (
-            <div className="space-y-4">
-              <Button 
-                onClick={createGame}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+        {gameState.status === 'initial' && (
+          <div className="space-y-4">
+            <button 
+              onClick={createGame}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Create New Game
+            </button>
+            <div className="flex gap-2">
+              <input
+                value={joinGameId}
+                onChange={(e) => setJoinGameId(e.target.value)}
+                placeholder="Enter Game ID"
+                className="flex-1 bg-gray-700 text-white px-4 py-2 rounded"
+              />
+              <button 
+                onClick={joinGame}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
               >
-                Create New Game
-              </Button>
-              <div className="flex gap-2">
-                <Input
-                  value={joinGameId}
-                  onChange={(e) => setJoinGameId(e.target.value)}
-                  placeholder="Enter Game ID"
-                  className="bg-white/10 border-white/20 text-white placeholder:text-gray-400"
-                />
-                <Button onClick={joinGame} variant="secondary">
-                  Join Game
-                </Button>
-              </div>
+                Join Game
+              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {gameState.status === 'waiting' && (
-            <div className="text-center space-y-4">
-              <div className="flex items-center justify-center gap-2">
-                <div className="text-xl font-semibold">Game ID: {gameState.gameId}</div>
-                <Button size="sm" variant="ghost" onClick={copyGameId}>
-                  <Copy size={16} />
-                </Button>
-              </div>
-              <div className="animate-pulse text-gray-300">
-                Waiting for opponent to join...
-              </div>
+        {gameState.status === 'waiting' && (
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-2">
+              <p className="text-xl">Game ID: {gameState.gameId}</p>
+              <button 
+                onClick={copyGameId}
+                className="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded"
+              >
+                Copy
+              </button>
             </div>
-          )}
+            <p className="text-gray-400">Waiting for opponent to join...</p>
+          </div>
+        )}
 
-          {(gameState.status === 'playing' || gameState.status === 'finished') && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-8">
-                <div className="text-center space-y-4">
-                  <div className="text-xl font-semibold flex items-center justify-center gap-2">
-                    You {gameState.playerScore > gameState.opponentScore && <Crown className="text-yellow-500" />}
-                    <span className="text-2xl text-purple-400">{gameState.playerScore}</span>
-                  </div>
-                  {gameState.status === 'playing' ? (
-                    <div className="flex gap-2 justify-center">
-                      {['rock', 'paper', 'scissors'].map(choice => (
-                        <Button
-                          key={choice}
-                          onClick={() => makeMove(choice)}
-                          disabled={gameState.playerChoice}
-                          variant={gameState.playerChoice === choice ? "secondary" : "outline"}
-                          className="p-6 hover:bg-white/10"
-                        >
-                          {getChoiceIcon(choice, 32)}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex justify-center">
-                      <div className="p-6 border rounded-lg border-white/20">
-                        {getChoiceIcon(gameState.playerChoice, 48)}
-                      </div>
-                    </div>
-                  )}
+        {(gameState.status === 'playing' || gameState.status === 'finished') && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="text-center">
+                <div className="text-xl font-bold mb-4">
+                  You: {gameState.playerScore}
                 </div>
-                <div className="text-center space-y-4">
-                  <div className="text-xl font-semibold flex items-center justify-center gap-2">
-                    Opponent {gameState.opponentScore > gameState.playerScore && <Crown className="text-yellow-500" />}
-                    <span className="text-2xl text-blue-400">{gameState.opponentScore}</span>
+                {gameState.status === 'playing' ? (
+                  <div className="flex gap-2 justify-center">
+                    {['rock', 'paper', 'scissors'].map(choice => (
+                      <button
+                        key={choice}
+                        onClick={() => makeMove(choice)}
+                        disabled={gameState.playerChoice}
+                        className={`px-6 py-4 rounded ${
+                          gameState.playerChoice === choice 
+                            ? 'bg-blue-600' 
+                            : 'bg-gray-700 hover:bg-gray-600'
+                        }`}
+                      >
+                        {choice}
+                      </button>
+                    ))}
                   </div>
-                  {gameState.opponentChoice && (
-                    <div className="flex justify-center">
-                      <div className="p-6 border rounded-lg border-white/20">
-                        {getChoiceIcon(gameState.opponentChoice, 48)}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                ) : (
+                  <div className="text-xl">{gameState.playerChoice}</div>
+                )}
               </div>
-
-              {gameState.status === 'finished' && (
-                <Button 
-                  onClick={startNewRound}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                >
-                  Play Next Round
-                </Button>
-              )}
+              <div className="text-center">
+                <div className="text-xl font-bold mb-4">
+                  Opponent: {gameState.opponentScore}
+                </div>
+                {gameState.opponentChoice && (
+                  <div className="text-xl">{gameState.opponentChoice}</div>
+                )}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {gameState.status === 'finished' && (
+              <button 
+                onClick={startNewRound}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Play Next Round
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
-
-export default RockPaperScissors;
