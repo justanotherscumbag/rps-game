@@ -1,136 +1,17 @@
-<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rock Paper Scissors</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .container {
-            text-align: center;
-        }
-        button {
-            margin: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-        }
-        .game-id {
-            font-size: 24px;
-            margin: 20px 0;
-        }
-        .choices {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-    </style>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <h1>Rock Paper Scissors</h1>
-        <div id="setup">
-            <button onclick="createGame()">Create New Game</button>
-            <div>
-                <input type="text" id="gameIdInput" placeholder="Enter Game ID">
-                <button onclick="joinGame()">Join Game</button>
-            </div>
-        </div>
-        <div id="waiting" style="display: none;">
-            <p>Share this Game ID with your opponent:</p>
-            <div class="game-id" id="gameIdDisplay"></div>
-            <p>Waiting for opponent to join...</p>
-        </div>
-        <div id="game" style="display: none;">
-            <h2>Make your choice:</h2>
-            <div class="choices">
-                <button onclick="makeMove('rock')">Rock</button>
-                <button onclick="makeMove('paper')">Paper</button>
-                <button onclick="makeMove('scissors')">Scissors</button>
-            </div>
-            <div id="status"></div>
-            <div id="result"></div>
-        </div>
-    </div>
-    <script>
-        let socket;
-        let gameId;
-        let playerId;
-
-        // Connect to WebSocket server
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}`;
-            socket = new WebSocket(wsUrl);
-
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handleGameMessage(data);
-            };
-        }
-
-        function handleGameMessage(data) {
-            switch (data.type) {
-                case 'game_created':
-                    gameId = data.gameId;
-                    playerId = data.playerId;
-                    document.getElementById('setup').style.display = 'none';
-                    document.getElementById('waiting').style.display = 'block';
-                    document.getElementById('gameIdDisplay').textContent = gameId;
-                    break;
-
-                case 'game_started':
-                    document.getElementById('waiting').style.display = 'none';
-                    document.getElementById('game').style.display = 'block';
-                    document.getElementById('status').textContent = 'Game started! Make your move.';
-                    break;
-
-                case 'waiting_for_move':
-                    document.getElementById('status').textContent = 'Waiting for opponent\'s move...';
-                    break;
-
-                case 'game_result':
-                    const moves = data.moves;
-                    const result = data.result;
-                    let resultText = `Result: ${result === 'tie' ? "It's a tie!" : 
-                        result === playerId ? 'You win!' : 'Opponent wins!'}`;
-                    document.getElementById('result').textContent = resultText;
-                    break;
-
-                case 'player_disconnected':
-                    document.getElementById('status').textContent = 'Opponent disconnected. Please start a new game.';
-                    break;
-            }
-        }
-
-        function createGame() {
-            socket.send(JSON.stringify({ type: 'create_game' }));
-        }
-
-        function joinGame() {
-            const gameIdToJoin = document.getElementById('gameIdInput').value;
-            socket.send(JSON.stringify({
-                type: 'join_game',
-                gameId: gameIdToJoin
-            }));
-        }
-
-        function makeMove(choice) {
-            socket.send(JSON.stringify({
-                type: 'make_move',
-                gameId: gameId,
-                move: choice
-            }));
-            document.getElementById('status').textContent = 'Move made, waiting for opponent...';
-        }
-
-        // Connect when page loads
-        connectWebSocket();
-    </script>
+    <div id="root"></div>
+    <script type="text/babel" src="/app.js"></script>
 </body>
 </html>
