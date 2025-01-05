@@ -1,4 +1,23 @@
 const RockPaperScissors = () => {
+  // Add generateHand function at the top of the component
+  const generateHand = () => {
+    const hand = { rock: 0, paper: 0, scissors: 0 };
+    const total = 15;
+    let remaining = total;
+    
+    ['rock', 'paper', 'scissors'].forEach((type, index, array) => {
+      if (index === array.length - 1) {
+        hand[type] = remaining;
+      } else {
+        const amount = Math.floor(Math.random() * (remaining - (array.length - index - 1))) + 1;
+        hand[type] = amount;
+        remaining -= amount;
+      }
+    });
+    
+    return hand;
+  };
+
   const [gameState, setGameState] = React.useState({
     gameId: null,
     playerId: null,
@@ -27,7 +46,6 @@ const RockPaperScissors = () => {
     scissors: '✌️'
   };
 
-  // Socket setup with connection status handling
   React.useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host;
@@ -60,7 +78,7 @@ const RockPaperScissors = () => {
           playerName: playerName || 'Player 1',
           playerHand: generateHand()
         }));
-        setMessage('Game created! Share your game ID.');
+        setMessage('Game created! Share your game ID with a friend to play.');
         break;
 
       case 'game_started':
@@ -73,6 +91,10 @@ const RockPaperScissors = () => {
         break;
 
       case 'waiting_for_move':
+        setGameState(prev => ({
+          ...prev,
+          status: 'waiting'
+        }));
         setMessage("Waiting for opponent's move...");
         break;
 
@@ -103,6 +125,18 @@ const RockPaperScissors = () => {
             opponentMove: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
             result: isWinner ? 'win' : isTie ? 'tie' : 'lose'
           }]
+        }));
+
+        setMessage(isTie ? "It's a tie!" : isWinner ? 'You win!' : 'Opponent wins!');
+        break;
+
+      case 'player_disconnected':
+        setMessage('Opponent disconnected. Please start a new game.');
+        setGameState(prev => ({ 
+          ...prev, 
+          status: 'initial',
+          playerHand: { rock: 0, paper: 0, scissors: 0 },
+          moveHistory: []
         }));
         break;
     }
@@ -154,16 +188,15 @@ const RockPaperScissors = () => {
   };
 
   const CardComponent = ({ type, count, onClick, disabled }) => (
-    <button
-      onClick={() => onClick(type)}
-      disabled={disabled || count === 0}
+    <div 
+      onClick={() => !disabled && count > 0 && onClick(type)}
       className={`
         relative w-24 h-36 rounded-lg ${
           disabled || count === 0 
             ? 'bg-gray-700 cursor-not-allowed' 
             : 'bg-gradient-to-br from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 cursor-pointer'
         }
-        transform transition-transform hover:scale-105
+        transform transition-all duration-200 hover:scale-105
         flex flex-col items-center justify-center border-4 border-white/10
       `}
     >
@@ -172,7 +205,7 @@ const RockPaperScissors = () => {
       <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold">
         {count}
       </div>
-    </button>
+    </div>
   );
 
   return (
