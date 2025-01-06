@@ -251,14 +251,14 @@ const RockPaperScissors = () => {
             </div>
           )}
 
-          {/* Game Code Display - only show when waiting for player */}
-          {gameState.status === 'waiting_for_player' && (
-            <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-8 text-center">
+          {/* Game Code Display - show when game is created and waiting */}
+          {gameState.gameId && (gameState.status === 'waiting_for_player' || gameState.status === 'waiting') && (
+            <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-8 text-center animate-bounce">
               <h3 className="text-2xl font-bold text-yellow-600 mb-2">Your Game Code:</h3>
-              <div className="text-4xl font-bold text-yellow-500 font-mono mb-4">
+              <div className="text-5xl font-bold text-yellow-500 font-mono mb-4 select-all cursor-pointer">
                 {gameState.gameId}
               </div>
-              <p className="text-yellow-600">Share this code with your friend to start playing!</p>
+              <p className="text-yellow-600 text-lg">👆 Click to select the code! Share it with your friend to start playing!</p>
             </div>
           )}
 
