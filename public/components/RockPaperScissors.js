@@ -251,7 +251,8 @@ const RockPaperScissors = () => {
             </div>
           )}
 
-          {gameState.status === 'waiting' && gameState.gameId && !gameState.opponentName && (
+          {/* Game Code Display */}
+          {gameState.status === 'waiting' && (
             <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-8 text-center">
               <h3 className="text-2xl font-bold text-yellow-600 mb-2">Your Game Code:</h3>
               <div className="text-4xl font-bold text-yellow-500 font-mono mb-4">
