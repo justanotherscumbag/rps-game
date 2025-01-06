@@ -111,14 +111,15 @@ const RockPaperScissors = () => {
         const isWinner = result === gameState.playerId;
         const isTie = result === 'tie';
         
+        // Update the game state with the round results
         setGameState(prev => ({
           ...prev,
-          status: 'playing',
+          status: 'playing', // Reset status to playing for next round
           opponentChoice: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
           playerScore: prev.playerScore + (isWinner ? 1 : 0),
           opponentScore: prev.opponentScore + (!isWinner && !isTie ? 1 : 0),
           round: prev.round + 1,
-          playerChoice: null,
+          playerChoice: null, // Reset player choice for next round
           moveHistory: [...prev.moveHistory, {
             round: prev.round + 1,
             playerMove: prev.playerChoice,
@@ -127,7 +128,9 @@ const RockPaperScissors = () => {
           }]
         }));
 
-        setMessage(isTie ? "It's a tie!" : isWinner ? '🎉 You win! 🎉' : 'Opponent wins!');
+        // Show round result message
+        const roundMessage = isTie ? "It's a tie!" : isWinner ? '🎉 You win this round! 🎉' : 'Opponent wins this round!';
+        setMessage(roundMessage + ' Pick your next card!');
         break;
 
       case 'player_disconnected':
