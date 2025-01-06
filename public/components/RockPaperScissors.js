@@ -251,8 +251,8 @@ const RockPaperScissors = () => {
             </div>
           )}
 
-          {/* Game Code Display */}
-          {gameState.status === 'waiting' && (
+          {/* Game Code Display - only show when waiting for player */}
+          {gameState.status === 'waiting_for_player' && (
             <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-8 text-center">
               <h3 className="text-2xl font-bold text-yellow-600 mb-2">Your Game Code:</h3>
               <div className="text-4xl font-bold text-yellow-500 font-mono mb-4">
@@ -304,6 +304,9 @@ const RockPaperScissors = () => {
                 <div className="text-2xl font-bold text-blue-600">
                   {gameState.playerName} {gameState.playerScore} - {gameState.opponentScore} {gameState.opponentName}
                 </div>
+                <div className="text-lg text-blue-500">
+                  {gameState.status === 'waiting_for_move' ? "Waiting for opponent's move..." : ''}
+                </div>
               </div>
 
               <div>
@@ -315,7 +318,7 @@ const RockPaperScissors = () => {
                       type={type}
                       count={gameState.playerHand[type]}
                       onClick={makeMove}
-                      disabled={gameState.status === 'waiting'}
+                      disabled={gameState.status === 'waiting_for_move'}
                     />
                   ))}
                 </div>
