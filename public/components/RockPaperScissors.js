@@ -102,8 +102,28 @@ const RockPaperScissors = () => {
         break;
 
       case 'round_complete':
-        const isWinner = data.result === gameState.playerId;
-        const isTie = data.result === 'tie';
+    const isWinner = data.result === gameState.playerId;
+    const isTie = data.result === 'tie';
+    
+    setGameState(prev => ({
+        ...prev,
+        status: prev.playerId === 'player1' ? 'playing' : 'waiting',
+        currentTurn: 'player1',
+        playerScore: data.scores[prev.playerId],
+        opponentScore: data.scores[prev.playerId === 'player1' ? 'player2' : 'player1'],
+        round: data.round + 1,
+        moveHistory: [...prev.moveHistory, {
+            round: data.round,
+            playerMove: data.moves[prev.playerId],
+            opponentMove: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
+            result: isWinner ? 'win' : isTie ? 'tie' : 'lose'
+        }]
+    }));
+
+    setMessage(
+        `Round ${data.round} - ${isTie ? "It's a tie!" : isWinner ? '🎉 You won!' : 'Opponent won!'} ` +
+        (gameState.playerId === 'player1' ? 'Your turn!' : "Waiting for Player 1's move...")
+    );
         
         setGameState(prev => ({
           ...prev,
