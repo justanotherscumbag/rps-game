@@ -365,7 +365,8 @@ const RockPaperScissors = () => {
 
           {/* Card Type Legend */}
           {(gameState.status === 'playing' || gameState.status === 'waiting') && (
-            <h3 className="text-xl font-bold text-blue-600 mb-4">Card Types:</h3>
+            <div className="mt-8 p-4 bg-gray-100 rounded-xl">
+              <h3 className="text-xl font-bold text-blue-600 mb-4">Card Types:</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center">
                   <div className="w-4 h-4 rounded-full border-4 border-yellow-300 mr-2"></div>
