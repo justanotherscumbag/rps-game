@@ -18,8 +18,27 @@ app.get('*', (req, res) => {
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Store active games
 const games = new Map();
+
+function determineWinner(move1, move2) {
+    if (move1 === move2) return 'tie';
+    if (
+        (move1 === 'rock' && move2 === 'scissors') ||
+        (move1 === 'paper' && move2 === 'rock') ||
+        (move1 === 'scissors' && move2 === 'paper')
+    ) {
+        return 'player1';
+    }
+    return 'player2';
+}
+
+function generateInitialHand() {
+    return {
+        rock: Math.floor(Math.random() * 5) + 3,
+        paper: Math.floor(Math.random() * 5) + 3,
+        scissors: Math.floor(Math.random() * 5) + 3
+    };
+}
 
 wss.on('connection', (socket) => {
     let gameId = null;
@@ -36,7 +55,8 @@ wss.on('connection', (socket) => {
                         socket,
                         id: 'player1',
                         name: data.playerName || 'Player 1',
-                        ready: false
+                        hand: generateInitialHand(),
+                        score: 0
                     }],
                     moves: {},
                     round: 0,
@@ -57,7 +77,8 @@ wss.on('connection', (socket) => {
                         socket,
                         id: 'player2',
                         name: data.playerName || 'Player 2',
-                        ready: false
+                        hand: generateInitialHand(),
+                        score: 0
                     });
                     playerId = 'player2';
                     gameId = data.gameId;
@@ -78,7 +99,11 @@ wss.on('connection', (socket) => {
                 if (currentGame) {
                     currentGame.moves[playerId] = data.move;
                     
-                    // Find opponent
+                    const player = currentGame.players.find(p => p.id === playerId);
+                    if (player && player.hand[data.move] > 0) {
+                        player.hand[data.move]--;
+                    }
+
                     const opponent = currentGame.players.find(p => p.id !== playerId);
                     
                     if (Object.keys(currentGame.moves).length === 2) {
@@ -87,25 +112,43 @@ wss.on('connection', (socket) => {
                             currentGame.moves.player2
                         );
                         
+                        if (result !== 'tie') {
+                            const winner = currentGame.players.find(p => p.id === result);
+                            if (winner) winner.score++;
+                        }
+
                         currentGame.round++;
                         
-                        currentGame.players.forEach(player => {
-                            player.socket.send(JSON.stringify({
+                        currentGame.players.forEach(p => {
+                            p.socket.send(JSON.stringify({
                                 type: 'game_result',
                                 result,
                                 moves: currentGame.moves,
-                                round: currentGame.round
+                                round: currentGame.round,
+                                scores: {
+                                    player1: currentGame.players[0].score,
+                                    player2: currentGame.players[1].score
+                                }
                             }));
                         });
                         
                         currentGame.moves = {};
-                    } else {
-                        // Notify opponent that a move has been made
-                        if (opponent) {
-                            opponent.socket.send(JSON.stringify({
-                                type: 'move_made'
-                            }));
+                        
+                        if (currentGame.round === 10) {
+                            currentGame.players.forEach(p => {
+                                p.socket.send(JSON.stringify({
+                                    type: 'game_over',
+                                    scores: {
+                                        player1: currentGame.players[0].score,
+                                        player2: currentGame.players[1].score
+                                    }
+                                }));
+                            });
                         }
+                    } else if (opponent) {
+                        opponent.socket.send(JSON.stringify({
+                            type: 'move_made'
+                        }));
                     }
                 }
                 break;
@@ -117,4 +160,15 @@ wss.on('connection', (socket) => {
             const game = games.get(gameId);
             const otherPlayer = game.players.find(p => p.id !== playerId);
             if (otherPlayer) {
-                otherPlayer
+                otherPlayer.socket.send(JSON.stringify({
+                    type: 'player_disconnected'
+                }));
+            }
+            games.delete(gameId);
+        }
+    });
+});
+
+server.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
