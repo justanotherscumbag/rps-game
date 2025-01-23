@@ -18,19 +18,53 @@ app.get('*', (req, res) => {
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-const games = new Map();
+// Game constants and helpers
+const CardTypes = {
+    REGULAR: 'regular',
+    UPGRADED: 'upgraded',
+    JOKER: 'joker'
+};
+
+function generateHand() {
+    return {
+        'regular-rock': 3,
+        'regular-paper': 3,
+        'regular-scissors': 3,
+        'upgraded-rock': 1,
+        'upgraded-paper': 1,
+        'upgraded-scissors': 1,
+        'joker': 1
+    };
+}
 
 function determineWinner(move1, move2) {
     if (move1 === move2) return 'tie';
-    if (
-        (move1 === 'rock' && move2 === 'scissors') ||
-        (move1 === 'paper' && move2 === 'rock') ||
-        (move1 === 'scissors' && move2 === 'paper')
-    ) {
-        return 'player1';
-    }
-    return 'player2';
+    
+    const [type1, card1] = move1.split('-');
+    const [type2, card2] = move2.split('-');
+    
+    // Joker rules
+    if (type1 === 'joker' && type2 === 'upgraded') return 'player1';
+    if (type2 === 'joker' && type1 === 'upgraded') return 'player2';
+    if (type1 === 'joker' && type2.startsWith('regular')) return 'player2';
+    if (type2 === 'joker' && type1.startsWith('regular')) return 'player1';
+    
+    // Upgraded vs Regular of same type
+    if (type1 === 'upgraded' && type2.startsWith('regular') && card1 === card2) return 'player1';
+    if (type2 === 'upgraded' && type1.startsWith('regular') && card1 === card2) return 'player2';
+    
+    // Standard RPS rules
+    const rules = {
+        'rock': 'scissors',
+        'paper': 'rock',
+        'scissors': 'paper'
+    };
+    
+    return rules[card1] === card2 ? 'player1' : 'player2';
 }
+
+// Store active games
+const games = new Map();
 
 wss.on('connection', (socket) => {
     let gameId = null;
@@ -74,11 +108,13 @@ wss.on('connection', (socket) => {
                     playerId = 'player2';
                     gameId = data.gameId;
                     
+                    // Notify both players
                     game.players.forEach(player => {
                         const opponent = game.players.find(p => p.id !== player.id);
                         player.socket.send(JSON.stringify({
                             type: 'game_joined',
-                            opponentName: opponent.name
+                            opponentName: opponent.name,
+                            currentTurn: 'player1'
                         }));
                     });
                 }
@@ -87,12 +123,15 @@ wss.on('connection', (socket) => {
             case 'make_move':
                 const currentGame = games.get(data.gameId);
                 if (currentGame && currentGame.currentTurn === playerId) {
+                    // Record the move
                     currentGame.moves[playerId] = data.move;
                     
+                    const player = currentGame.players.find(p => p.id === playerId);
+                    const opponent = currentGame.players.find(p => p.id !== playerId);
+                    
                     // Switch turns
-                    const nextTurn = playerId === 'player1' ? 'player2' : 'player1';
-                    currentGame.currentTurn = nextTurn;
-
+                    currentGame.currentTurn = opponent.id;
+                    
                     if (Object.keys(currentGame.moves).length === 2) {
                         // Both players have moved
                         const result = determineWinner(
@@ -109,49 +148,51 @@ wss.on('connection', (socket) => {
                         // Send round results
                         currentGame.players.forEach(p => {
                             p.socket.send(JSON.stringify({
-                                type: 'round_result',
+                                type: 'round_complete',
                                 moves: currentGame.moves,
-                                winner: result,
-                                round: currentGame.round,
+                                result: result,
                                 scores: {
                                     player1: currentGame.players[0].score,
                                     player2: currentGame.players[1].score
-                                }
+                                },
+                                round: currentGame.round
                             }));
                         });
-
-                        // Reset for next round
+                        
+                        // Prepare next round
                         currentGame.moves = {};
                         currentGame.round++;
                         currentGame.currentTurn = 'player1';
 
                         // Check if game is over
                         if (currentGame.round > 10) {
-                            const player1Score = currentGame.players[0].score;
-                            const player2Score = currentGame.players[1].score;
-                            const winner = player1Score > player2Score ? 'player1' : 
-                                         player2Score > player1Score ? 'player2' : 'tie';
+                            const p1Score = currentGame.players[0].score;
+                            const p2Score = currentGame.players[1].score;
+                            const gameWinner = p1Score > p2Score ? 'player1' : 
+                                             p2Score > p1Score ? 'player2' : 'tie';
 
                             currentGame.players.forEach(p => {
                                 p.socket.send(JSON.stringify({
                                     type: 'game_over',
-                                    winner,
+                                    winner: gameWinner,
                                     scores: {
-                                        player1: player1Score,
-                                        player2: player2Score
+                                        player1: p1Score,
+                                        player2: p2Score
                                     }
                                 }));
                             });
                             games.delete(gameId);
                         }
                     } else {
-                        // Notify about turn change
-                        currentGame.players.forEach(p => {
-                            p.socket.send(JSON.stringify({
-                                type: 'move_made',
-                                nextTurn
-                            }));
-                        });
+                        // Notify players about the turn change
+                        opponent.socket.send(JSON.stringify({
+                            type: 'your_turn',
+                            previousMove: null // Don't reveal the move yet
+                        }));
+                        
+                        player.socket.send(JSON.stringify({
+                            type: 'waiting_for_opponent'
+                        }));
                     }
                 }
                 break;
