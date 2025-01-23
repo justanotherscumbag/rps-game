@@ -32,14 +32,6 @@ function determineWinner(move1, move2) {
     return 'player2';
 }
 
-function generateInitialHand() {
-    return {
-        rock: Math.floor(Math.random() * 5) + 3,
-        paper: Math.floor(Math.random() * 5) + 3,
-        scissors: Math.floor(Math.random() * 5) + 3
-    };
-}
-
 wss.on('connection', (socket) => {
     let gameId = null;
     let playerId = null;
@@ -55,11 +47,11 @@ wss.on('connection', (socket) => {
                         socket,
                         id: 'player1',
                         name: data.playerName || 'Player 1',
-                        hand: generateInitialHand(),
                         score: 0
                     }],
                     moves: {},
-                    round: 0,
+                    round: 1,
+                    currentTurn: 'player1',
                     status: 'waiting'
                 });
                 playerId = 'player1';
@@ -77,7 +69,6 @@ wss.on('connection', (socket) => {
                         socket,
                         id: 'player2',
                         name: data.playerName || 'Player 2',
-                        hand: generateInitialHand(),
                         score: 0
                     });
                     playerId = 'player2';
@@ -86,8 +77,7 @@ wss.on('connection', (socket) => {
                     game.players.forEach(player => {
                         const opponent = game.players.find(p => p.id !== player.id);
                         player.socket.send(JSON.stringify({
-                            type: 'game_started',
-                            gameId,
+                            type: 'game_joined',
                             opponentName: opponent.name
                         }));
                     });
@@ -96,34 +86,32 @@ wss.on('connection', (socket) => {
 
             case 'make_move':
                 const currentGame = games.get(data.gameId);
-                if (currentGame) {
+                if (currentGame && currentGame.currentTurn === playerId) {
                     currentGame.moves[playerId] = data.move;
                     
-                    const player = currentGame.players.find(p => p.id === playerId);
-                    if (player && player.hand[data.move] > 0) {
-                        player.hand[data.move]--;
-                    }
+                    // Switch turns
+                    const nextTurn = playerId === 'player1' ? 'player2' : 'player1';
+                    currentGame.currentTurn = nextTurn;
 
-                    const opponent = currentGame.players.find(p => p.id !== playerId);
-                    
                     if (Object.keys(currentGame.moves).length === 2) {
+                        // Both players have moved
                         const result = determineWinner(
                             currentGame.moves.player1,
                             currentGame.moves.player2
                         );
                         
+                        // Update scores
                         if (result !== 'tie') {
                             const winner = currentGame.players.find(p => p.id === result);
                             if (winner) winner.score++;
                         }
 
-                        currentGame.round++;
-                        
+                        // Send round results
                         currentGame.players.forEach(p => {
                             p.socket.send(JSON.stringify({
-                                type: 'game_result',
-                                result,
+                                type: 'round_result',
                                 moves: currentGame.moves,
+                                winner: result,
                                 round: currentGame.round,
                                 scores: {
                                     player1: currentGame.players[0].score,
@@ -131,24 +119,39 @@ wss.on('connection', (socket) => {
                                 }
                             }));
                         });
-                        
+
+                        // Reset for next round
                         currentGame.moves = {};
-                        
-                        if (currentGame.round === 10) {
+                        currentGame.round++;
+                        currentGame.currentTurn = 'player1';
+
+                        // Check if game is over
+                        if (currentGame.round > 10) {
+                            const player1Score = currentGame.players[0].score;
+                            const player2Score = currentGame.players[1].score;
+                            const winner = player1Score > player2Score ? 'player1' : 
+                                         player2Score > player1Score ? 'player2' : 'tie';
+
                             currentGame.players.forEach(p => {
                                 p.socket.send(JSON.stringify({
                                     type: 'game_over',
+                                    winner,
                                     scores: {
-                                        player1: currentGame.players[0].score,
-                                        player2: currentGame.players[1].score
+                                        player1: player1Score,
+                                        player2: player2Score
                                     }
                                 }));
                             });
+                            games.delete(gameId);
                         }
-                    } else if (opponent) {
-                        opponent.socket.send(JSON.stringify({
-                            type: 'move_made'
-                        }));
+                    } else {
+                        // Notify about turn change
+                        currentGame.players.forEach(p => {
+                            p.socket.send(JSON.stringify({
+                                type: 'move_made',
+                                nextTurn
+                            }));
+                        });
                     }
                 }
                 break;
