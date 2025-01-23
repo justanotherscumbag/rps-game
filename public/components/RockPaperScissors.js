@@ -1,4 +1,62 @@
 const RockPaperScissors = () => {
+  // Card icons need to be defined at component level
+  const cardIcons = {
+    rock: '✊',
+    paper: '✋',
+    scissors: '✌️'
+  };
+
+  const CardComponent = ({ type, count, onClick, disabled }) => {
+    const [cardType, cardName] = type.split('-');
+    const isJoker = type === 'joker';
+    
+    const getCardStyle = () => {
+      if (disabled || count === 0) return 'bg-gray-300 cursor-not-allowed';
+      if (isJoker) return 'bg-gradient-to-br from-purple-400 to-pink-400 hover:brightness-110';
+      if (cardType === 'upgraded') return 'bg-gradient-to-br from-blue-400 to-cyan-400 hover:brightness-110';
+      return 'bg-gradient-to-br from-pink-400 to-orange-400 hover:brightness-110';
+    };
+
+    const getBorderStyle = () => {
+      if (disabled || count === 0) return 'border-gray-200';
+      if (isJoker) return 'border-purple-500';
+      if (cardType === 'upgraded') return 'border-blue-500';
+      return 'border-yellow-300';
+    };
+
+    return (
+      <div 
+        onClick={() => !disabled && count > 0 && onClick(type)}
+        className={`
+          relative w-40 h-56 rounded-2xl 
+          ${getCardStyle()}
+          transform transition-all duration-200 hover:scale-105
+          flex flex-col items-center justify-center border-8
+          ${getBorderStyle()}
+          shadow-xl
+        `}
+      >
+        <div className="text-6xl mb-4">
+          {isJoker ? '🃏' : cardIcons[cardName]}
+        </div>
+        <div className="text-xl capitalize font-bold text-white">
+          {isJoker ? 'Joker' : cardName}
+          {cardType === 'upgraded' && (
+            <span className="text-blue-200">+</span>
+          )}
+        </div>
+        <div className={`
+          absolute -top-4 -right-4 w-12 h-12 rounded-full 
+          ${isJoker ? 'bg-purple-500' : 'bg-blue-500'} 
+          flex items-center justify-center text-white text-xl font-bold 
+          border-4 ${getBorderStyle()} shadow-lg`}
+        >
+          {count}
+        </div>
+      </div>
+    );
+  };
+
   const [gameState, setGameState] = React.useState({
     gameId: null,
     playerId: null,
@@ -35,7 +93,6 @@ const RockPaperScissors = () => {
 
     ws.onmessage = function(event) {
       const data = JSON.parse(event.data);
-      console.log('Received message:', data); // Debug log
       handleGameMessage(data);
     };
 
@@ -44,8 +101,6 @@ const RockPaperScissors = () => {
   }, []);
 
   const handleGameMessage = (data) => {
-    console.log('Handling message:', data.type); // Debug log
-
     switch (data.type) {
       case 'game_created':
         setGameState(prev => ({
@@ -55,7 +110,7 @@ const RockPaperScissors = () => {
           status: 'waiting_for_player',
           playerName: playerName || 'Player 1',
         }));
-        setMessage('Game created! Share code: ' + data.gameId);
+        setMessage(`Game created! Share code: ${data.gameId}`);
         break;
 
       case 'game_started':
@@ -178,59 +233,6 @@ const RockPaperScissors = () => {
     }));
   };
 
-  // Card Component
-  const CardComponent = ({ type, count, onClick, disabled }) => {
-    const [cardType, cardName] = type.split('-');
-    const isJoker = type === 'joker';
-    
-    const getCardStyle = () => {
-      if (disabled || count === 0) return 'bg-gray-300 cursor-not-allowed';
-      if (isJoker) return 'bg-gradient-to-br from-purple-400 to-pink-400 hover:brightness-110';
-      if (cardType === 'upgraded') return 'bg-gradient-to-br from-blue-400 to-cyan-400 hover:brightness-110';
-      return 'bg-gradient-to-br from-pink-400 to-orange-400 hover:brightness-110';
-    };
-
-    const getBorderStyle = () => {
-      if (disabled || count === 0) return 'border-gray-200';
-      if (isJoker) return 'border-purple-500';
-      if (cardType === 'upgraded') return 'border-blue-500';
-      return 'border-yellow-300';
-    };
-
-    return (
-      <div 
-        onClick={() => !disabled && count > 0 && onClick(type)}
-        className={`
-          relative w-40 h-56 rounded-2xl 
-          ${getCardStyle()}
-          transform transition-all duration-200 hover:scale-105
-          flex flex-col items-center justify-center border-8
-          ${getBorderStyle()}
-          shadow-xl
-        `}
-      >
-        <div className="text-6xl mb-4">
-          {isJoker ? '🃏' : cardIcons[cardName]}
-        </div>
-        <div className="text-xl capitalize font-bold text-white">
-          {isJoker ? 'Joker' : cardName}
-          {cardType === 'upgraded' && (
-            <span className="text-blue-200">+</span>
-          )}
-        </div>
-        <div className={`
-          absolute -top-4 -right-4 w-12 h-12 rounded-full 
-          ${isJoker ? 'bg-purple-500' : 'bg-blue-500'} 
-          flex items-center justify-center text-white text-xl font-bold 
-          border-4 ${getBorderStyle()} shadow-lg`}
-        >
-          {count}
-        </div>
-      </div>
-    );
-  };
-
-  // Render game board
   return (
     <div className="min-h-screen p-4 flex bg-gradient-to-b from-blue-400 to-purple-400">
       {/* Move History Sidebar */}
@@ -324,27 +326,25 @@ const RockPaperScissors = () => {
               </div>
 
               <div className="text-center text-xl font-bold text-blue-600">
-                {gameState.currentTurn === gameState.playerId 
+                {gameState.canPlay 
                   ? "It's your turn!" 
                   : "Waiting for opponent's move..."}
               </div>
 
-              {gameState.playerHand && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-6 text-blue-600">Your Cards</h2>
-                  <div className="flex flex-wrap gap-6 justify-center">
-                    {Object.entries(gameState.playerHand).map(([type, count]) => (
-                      <CardComponent
-                        key={type}
-                        type={type}
-                        count={count}
-                        onClick={makeMove}
-                        disabled={gameState.currentTurn !== gameState.playerId}
-                      />
-                    ))}
-                  </div>
+              <div>
+                <h2 className="text-2xl font-bold mb-6 text-blue-600">Your Cards</h2>
+                <div className="flex flex-wrap gap-6 justify-center">
+                  {Object.entries(gameState.playerHand).map(([type, count]) => (
+                    <CardComponent
+                      key={type}
+                      type={type}
+                      count={count}
+                      onClick={makeMove}
+                      disabled={!gameState.canPlay}
+                    />
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -365,8 +365,7 @@ const RockPaperScissors = () => {
 
           {/* Card Type Legend */}
           {(gameState.status === 'playing' || gameState.status === 'waiting') && (
-            <div className="mt-8 p-4 bg-gray-100 rounded-xl">
-              <h3 className="text-xl font-bold text-blue-600 mb-4">Card Types:</h3>
+            <h3 className="text-xl font-bold text-blue-600 mb-4">Card Types:</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center">
                   <div className="w-4 h-4 rounded-full border-4 border-yellow-300 mr-2"></div>
@@ -388,3 +387,5 @@ const RockPaperScissors = () => {
     </div>
   );
 };
+
+export default RockPaperScissors;
