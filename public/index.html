@@ -8,22 +8,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            background: linear-gradient(to bottom, #4B0082, #1a1a1a);
-        }
-    </style>
 </head>
 <body>
     <div id="root"></div>
     <script type="text/babel" src="/components/RockPaperScissors.js"></script>
     <script type="text/babel">
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<RockPaperScissors />);
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(
+            <React.StrictMode>
+                <RockPaperScissors />
+            </React.StrictMode>
+        );
     </script>
 </body>
 </html>
