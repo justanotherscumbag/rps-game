@@ -1,22 +1,4 @@
 const RockPaperScissors = () => {
-  const generateHand = () => {
-    const hand = { rock: 0, paper: 0, scissors: 0 };
-    const total = 15;
-    let remaining = total;
-    
-    ['rock', 'paper', 'scissors'].forEach((type, index, array) => {
-      if (index === array.length - 1) {
-        hand[type] = remaining;
-      } else {
-        const amount = Math.floor(Math.random() * (remaining - (array.length - index - 1))) + 1;
-        hand[type] = amount;
-        remaining -= amount;
-      }
-    });
-    
-    return hand;
-  };
-
   const [gameState, setGameState] = React.useState({
     gameId: null,
     playerId: null,
@@ -27,12 +9,28 @@ const RockPaperScissors = () => {
     opponentChoice: null,
     playerScore: 0,
     opponentScore: 0,
-    round: 0,
-    canRedraw: false,
+    round: 1,
+    currentTurn: 'player1',
     moveHistory: [],
     playerName: '',
     opponentName: 'Opponent',
   });
+
+  const generateHand = () => {
+    const hand = { rock: 0, paper: 0, scissors: 0 };
+    let remaining = 15;
+    
+    ['rock', 'paper', 'scissors'].forEach((type, index, array) => {
+      if (index === array.length - 1) {
+        hand[type] = remaining;
+      } else {
+        const amount = Math.floor(Math.random() * (remaining - (array.length - index - 1))) + 1;
+        hand[type] = amount;
+        remaining -= amount;
+      }
+    });
+    return hand;
+  };
 
   const [socket, setSocket] = React.useState(null);
   const [joinGameId, setJoinGameId] = React.useState('');
@@ -55,15 +53,8 @@ const RockPaperScissors = () => {
       handleGameMessage(data);
     };
 
-    ws.onclose = function() {
-      setMessage('Connection lost. Please refresh the page.');
-    };
-
     setSocket(ws);
-
-    return function cleanup() {
-      ws.close();
-    };
+    return () => ws.close();
   }, []);
 
   const handleGameMessage = (data) => {
@@ -72,75 +63,65 @@ const RockPaperScissors = () => {
         setGameState(prev => ({
           ...prev,
           gameId: data.gameId,
-          playerId: data.playerId,
-          status: 'waiting',
+          playerId: 'player1',
+          status: 'waiting_for_player',
           playerName: playerName || 'Player 1',
-          playerHand: generateHand()
+          playerHand: generateHand(),
+          currentTurn: 'player1'
         }));
-        setMessage('Share this code with your friend to play!');
+        setMessage(`Game created! Share code: ${data.gameId}`);
         break;
 
-      case 'game_started':
+      case 'game_joined':
         setGameState(prev => ({
           ...prev,
           status: 'playing',
-          opponentName: data.opponentName || 'Player 2',
-          playerHand: prev.playerHand.rock === 0 ? generateHand() : prev.playerHand // Generate hand only if player doesn't have cards
+          opponentName: data.opponentName,
+          playerHand: generateHand(),
+          currentTurn: 'player1'
         }));
-        setMessage('Game started! Pick your card!');
-        break;
-
-      case 'waiting_for_move':
-        setGameState(prev => ({
-          ...prev,
-          status: 'waiting'
-        }));
-        setMessage("Waiting for opponent's move...");
+        setMessage(prev.playerId === 'player1' ? 'Your turn!' : "Opponent's turn!");
         break;
 
       case 'move_made':
+        const isMyTurn = data.nextTurn === gameState.playerId;
         setGameState(prev => ({
           ...prev,
+          currentTurn: data.nextTurn,
           status: 'playing'
         }));
-        setMessage('Opponent made their move. Your turn!');
+        setMessage(isMyTurn ? 'Your turn!' : "Opponent's turn!");
         break;
 
-      case 'game_result':
-        const result = data.result;
-        const isWinner = result === gameState.playerId;
-        const isTie = result === 'tie';
-        
-        // Update the game state with the round results
+      case 'round_result':
         setGameState(prev => ({
           ...prev,
-          status: 'playing', // Reset status to playing for next round
-          opponentChoice: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
-          playerScore: prev.playerScore + (isWinner ? 1 : 0),
-          opponentScore: prev.opponentScore + (!isWinner && !isTie ? 1 : 0),
-          round: prev.round + 1,
-          playerChoice: null, // Reset player choice for next round
+          playerScore: data.scores[prev.playerId],
+          opponentScore: data.scores[prev.playerId === 'player1' ? 'player2' : 'player1'],
+          round: data.round,
+          currentTurn: 'player1',
           moveHistory: [...prev.moveHistory, {
-            round: prev.round + 1,
-            playerMove: prev.playerChoice,
+            round: data.round,
+            playerMove: data.moves[prev.playerId],
             opponentMove: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
-            result: isWinner ? 'win' : isTie ? 'tie' : 'lose'
+            result: data.winner === prev.playerId ? 'win' : data.winner === 'tie' ? 'tie' : 'lose'
           }]
         }));
-
-        // Show round result message
-        const roundMessage = isTie ? "It's a tie!" : isWinner ? '🎉 You win this round! 🎉' : 'Opponent wins this round!';
-        setMessage(roundMessage + ' Pick your next card!');
+        setMessage(`Round ${data.round} finished! ${
+          data.winner === 'tie' ? "It's a tie!" : 
+          data.winner === gameState.playerId ? 'You won!' : 'Opponent won!'
+        }`);
         break;
 
-      case 'player_disconnected':
-        setMessage('Opponent left the game. Start a new game!');
-        setGameState(prev => ({ 
-          ...prev, 
-          status: 'initial',
-          playerHand: { rock: 0, paper: 0, scissors: 0 },
-          moveHistory: []
+      case 'game_over':
+        setGameState(prev => ({
+          ...prev,
+          status: 'game_over'
         }));
+        setMessage(
+          data.winner === 'tie' ? "Game Over - It's a tie!" :
+          data.winner === gameState.playerId ? 'Game Over - You won! 🎉' : 'Game Over - Opponent won!'
+        );
         break;
     }
   };
@@ -171,13 +152,13 @@ const RockPaperScissors = () => {
   };
 
   const makeMove = (choice) => {
-    if (gameState.playerHand[choice] > 0 && socket && gameState.status === 'playing') {
+    const isMyTurn = gameState.currentTurn === gameState.playerId;
+    if (gameState.playerHand[choice] > 0 && socket && isMyTurn) {
       const updatedHand = {...gameState.playerHand};
       updatedHand[choice]--;
       
       setGameState(prev => ({
         ...prev,
-        playerChoice: choice,
         playerHand: updatedHand,
         status: 'waiting'
       }));
@@ -190,31 +171,11 @@ const RockPaperScissors = () => {
     }
   };
 
-  const CardComponent = ({ type, count, onClick, disabled }) => (
-    <div 
-      onClick={() => !disabled && count > 0 && onClick(type)}
-      className={`
-        relative w-40 h-56 rounded-2xl ${
-          disabled || count === 0 
-            ? 'bg-gray-300 cursor-not-allowed' 
-            : 'bg-gradient-to-br from-pink-400 to-orange-400 hover:from-pink-300 hover:to-orange-300 cursor-pointer'
-        }
-        transform transition-all duration-200 hover:scale-105
-        flex flex-col items-center justify-center border-8 ${
-          disabled || count === 0 
-            ? 'border-gray-200' 
-            : 'border-yellow-300'
-        }
-        shadow-xl
-      `}
-    >
-      <div className="text-6xl mb-4">{cardIcons[type]}</div>
-      <div className="text-xl capitalize font-bold text-white">{type}</div>
-      <div className="absolute -top-4 -right-4 w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl font-bold border-4 border-yellow-300 shadow-lg">
-        {count}
-      </div>
-    </div>
-  );
+  const isMyTurn = gameState.currentTurn === gameState.playerId;
+
+  // Rest of the component code (CardComponent and render) stays the same
+  // Just update the card disabled condition to:
+  // disabled={!isMyTurn || count === 0}
 
   return (
     <div className="min-h-screen p-4 flex bg-gradient-to-b from-blue-400 to-purple-400">
@@ -254,14 +215,13 @@ const RockPaperScissors = () => {
             </div>
           )}
 
-          {/* Game Code Display - show when game is created and waiting */}
-          {gameState.gameId && (gameState.status === 'waiting_for_player' || gameState.status === 'waiting') && (
+          {gameState.status === 'waiting_for_player' && (
             <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-8 text-center animate-bounce">
               <h3 className="text-2xl font-bold text-yellow-600 mb-2">Your Game Code:</h3>
               <div className="text-5xl font-bold text-yellow-500 font-mono mb-4 select-all cursor-pointer">
                 {gameState.gameId}
               </div>
-              <p className="text-yellow-600 text-lg">👆 Click to select the code! Share it with your friend to start playing!</p>
+              <p className="text-yellow-600 text-lg">👆 Click to select the code! Share it with your friend!</p>
             </div>
           )}
 
@@ -300,32 +260,65 @@ const RockPaperScissors = () => {
             </div>
           )}
 
-          {gameState.status !== 'initial' && (
+          {(gameState.status === 'playing' || gameState.status === 'waiting') && (
             <div className="space-y-8">
               <div className="flex justify-between items-center">
                 <div className="text-2xl font-bold text-blue-600">Round: {gameState.round}/10</div>
                 <div className="text-2xl font-bold text-blue-600">
                   {gameState.playerName} {gameState.playerScore} - {gameState.opponentScore} {gameState.opponentName}
                 </div>
-                <div className="text-lg text-blue-500">
-                  {gameState.status === 'waiting_for_move' ? "Waiting for opponent's move..." : ''}
-                </div>
+              </div>
+
+              <div className="text-center text-xl font-bold text-blue-600">
+                {isMyTurn ? "It's your turn!" : "Waiting for opponent's move..."}
               </div>
 
               <div>
                 <h2 className="text-2xl font-bold mb-6 text-blue-600">Your Cards</h2>
                 <div className="flex flex-wrap gap-6 justify-center">
                   {['rock', 'paper', 'scissors'].map((type) => (
-                    <CardComponent
+                    <div 
                       key={type}
-                      type={type}
-                      count={gameState.playerHand[type]}
-                      onClick={makeMove}
-                      disabled={gameState.status === 'waiting_for_move'}
-                    />
+                      onClick={() => !(!isMyTurn || gameState.playerHand[type] === 0) && makeMove(type)}
+                      className={`
+                        relative w-40 h-56 rounded-2xl 
+                        ${!isMyTurn || gameState.playerHand[type] === 0
+                          ? 'bg-gray-300 cursor-not-allowed' 
+                          : 'bg-gradient-to-br from-pink-400 to-orange-400 hover:from-pink-300 hover:to-orange-300 cursor-pointer'
+                        }
+                        transform transition-all duration-200 hover:scale-105
+                        flex flex-col items-center justify-center border-8
+                        ${!isMyTurn || gameState.playerHand[type] === 0
+                          ? 'border-gray-200'
+                          : 'border-yellow-300'
+                        }
+                        shadow-xl
+                      `}
+                    >
+                      <div className="text-6xl mb-4">{cardIcons[type]}</div>
+                      <div className="text-xl capitalize font-bold text-white">{type}</div>
+                      <div className="absolute -top-4 -right-4 w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl font-bold border-4 border-yellow-300 shadow-lg">
+                        {gameState.playerHand[type]}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {gameState.status === 'game_over' && (
+            <div className="text-center">
+              <h2 className="text-3xl font-bold text-blue-600 mb-4">Game Over!</h2>
+              <div className="text-2xl text-blue-600">
+                Final Score: {gameState.playerName} {gameState.playerScore} - {gameState.opponentScore} {gameState.opponentName}
+              </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-8 bg-green-500 hover:bg-green-400 text-white text-xl font-bold py-4 px-8 rounded-xl transition shadow-lg"
+              >
+                Play Again
+              </button>
             </div>
           )}
         </div>
