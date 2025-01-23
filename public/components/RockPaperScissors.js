@@ -1,17 +1,23 @@
 const RockPaperScissors = () => {
-  // State and constants
   const [gameState, setGameState] = React.useState({
     gameId: null,
     playerId: null,
     status: 'initial',
-    playerHand: null,
-    opponentHand: null,
+    playerHand: {
+      'regular-rock': 3,
+      'regular-paper': 3,
+      'regular-scissors': 3,
+      'upgraded-rock': 1,
+      'upgraded-paper': 1,
+      'upgraded-scissors': 1,
+      'joker': 1
+    },
     playerChoice: null,
     opponentChoice: null,
     playerScore: 0,
     opponentScore: 0,
     round: 1,
-    currentTurn: null,
+    canPlay: false,
     moveHistory: [],
     playerName: '',
     opponentName: 'Opponent',
@@ -22,26 +28,6 @@ const RockPaperScissors = () => {
   const [playerName, setPlayerName] = React.useState('');
   const [message, setMessage] = React.useState(null);
 
-  const cardIcons = {
-    rock: '✊',
-    paper: '✋',
-    scissors: '✌️'
-  };
-
-  // Generate initial hand of cards
-  const generateHand = () => {
-    return {
-      'regular-rock': 3,
-      'regular-paper': 3,
-      'regular-scissors': 3,
-      'upgraded-rock': 1,
-      'upgraded-paper': 1,
-      'upgraded-scissors': 1,
-      'joker': 1
-    };
-  };
-
-  // WebSocket setup
   React.useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host;
@@ -49,6 +35,7 @@ const RockPaperScissors = () => {
 
     ws.onmessage = function(event) {
       const data = JSON.parse(event.data);
+      console.log('Received message:', data); // Debug log
       handleGameMessage(data);
     };
 
@@ -56,8 +43,9 @@ const RockPaperScissors = () => {
     return () => ws.close();
   }, []);
 
-  // Handle incoming messages
   const handleGameMessage = (data) => {
+    console.log('Handling message:', data.type); // Debug log
+
     switch (data.type) {
       case 'game_created':
         setGameState(prev => ({
@@ -66,72 +54,49 @@ const RockPaperScissors = () => {
           playerId: 'player1',
           status: 'waiting_for_player',
           playerName: playerName || 'Player 1',
-          playerHand: generateHand(),
-          currentTurn: 'player1'
         }));
-        setMessage(`Game created! Share code: ${data.gameId}`);
+        setMessage('Game created! Share code: ' + data.gameId);
         break;
 
-      case 'game_joined':
+      case 'game_started':
         setGameState(prev => ({
           ...prev,
-          status: prev.playerId === 'player1' ? 'playing' : 'waiting',
+          status: 'playing',
           opponentName: data.opponentName,
-          playerHand: prev.playerHand || generateHand(),
-          currentTurn: 'player1'
+          canPlay: prev.playerId === 'player1'
         }));
-        setMessage(data.currentTurn === gameState.playerId ? 'Your turn!' : "Opponent's turn!");
+        setMessage(gameState.playerId === 'player1' ? 'Your turn!' : "Waiting for player 1...");
         break;
 
       case 'your_turn':
         setGameState(prev => ({
           ...prev,
           status: 'playing',
-          currentTurn: prev.playerId
+          canPlay: true
         }));
         setMessage('Your turn!');
         break;
 
-      case 'waiting_for_opponent':
+      case 'wait_turn':
         setGameState(prev => ({
           ...prev,
           status: 'waiting',
-          currentTurn: prev.playerId === 'player1' ? 'player2' : 'player1'
+          canPlay: false
         }));
         setMessage("Waiting for opponent's move...");
         break;
 
       case 'round_complete':
-    const isWinner = data.result === gameState.playerId;
-    const isTie = data.result === 'tie';
-    
-    setGameState(prev => ({
-        ...prev,
-        status: prev.playerId === 'player1' ? 'playing' : 'waiting',
-        currentTurn: 'player1',
-        playerScore: data.scores[prev.playerId],
-        opponentScore: data.scores[prev.playerId === 'player1' ? 'player2' : 'player1'],
-        round: data.round + 1,
-        moveHistory: [...prev.moveHistory, {
-            round: data.round,
-            playerMove: data.moves[prev.playerId],
-            opponentMove: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
-            result: isWinner ? 'win' : isTie ? 'tie' : 'lose'
-        }]
-    }));
-
-    setMessage(
-        `Round ${data.round} - ${isTie ? "It's a tie!" : isWinner ? '🎉 You won!' : 'Opponent won!'} ` +
-        (gameState.playerId === 'player1' ? 'Your turn!' : "Waiting for Player 1's move...")
-    );
+        const isWinner = data.result === gameState.playerId;
+        const isTie = data.result === 'tie';
         
         setGameState(prev => ({
           ...prev,
-          status: 'playing',
           playerScore: data.scores[prev.playerId],
           opponentScore: data.scores[prev.playerId === 'player1' ? 'player2' : 'player1'],
           round: data.round + 1,
-          currentTurn: 'player1',
+          canPlay: prev.playerId === 'player1',
+          status: prev.playerId === 'player1' ? 'playing' : 'waiting',
           moveHistory: [...prev.moveHistory, {
             round: data.round,
             playerMove: data.moves[prev.playerId],
@@ -140,21 +105,21 @@ const RockPaperScissors = () => {
           }]
         }));
 
-        setMessage(`Round ${data.round} - ${
-          isTie ? "It's a tie!" : 
-          isWinner ? '🎉 You won!' : 'Opponent won!'
-        }`);
+        setMessage(
+          `Round ${data.round} - ${isTie ? "It's a tie!" : isWinner ? '🎉 You won!' : 'Opponent won!'} ` +
+          (gameState.playerId === 'player1' ? 'Your turn!' : "Waiting for Player 1's move...")
+        );
         break;
 
       case 'game_over':
-        const finalWinner = data.winner === gameState.playerId;
         setGameState(prev => ({
           ...prev,
-          status: 'game_over'
+          status: 'game_over',
+          canPlay: false
         }));
         setMessage(
           data.winner === 'tie' ? "Game Over - It's a tie!" :
-          finalWinner ? 'Game Over - You won! 🎉' : 'Game Over - Opponent won!'
+          data.winner === gameState.playerId ? 'Game Over - You won! 🎉' : 'Game Over - Opponent won!'
         );
         break;
 
@@ -163,14 +128,12 @@ const RockPaperScissors = () => {
         setGameState(prev => ({ 
           ...prev, 
           status: 'initial',
-          playerHand: null,
-          moveHistory: []
+          canPlay: false
         }));
         break;
     }
   };
 
-  // Game actions
   const createGame = () => {
     if (!playerName.trim()) {
       setMessage('Please enter your name first!');
@@ -197,24 +160,22 @@ const RockPaperScissors = () => {
   };
 
   const makeMove = (cardType) => {
-    if (gameState.playerHand[cardType] > 0 && 
-        socket && 
-        gameState.currentTurn === gameState.playerId) {
-      const updatedHand = {...gameState.playerHand};
-      updatedHand[cardType]--;
-      
-      setGameState(prev => ({
-        ...prev,
-        playerHand: updatedHand,
-        status: 'waiting'
-      }));
+    if (!gameState.canPlay) return;
 
-      socket.send(JSON.stringify({
-        type: 'make_move',
-        gameId: gameState.gameId,
-        move: cardType
-      }));
-    }
+    const updatedHand = {...gameState.playerHand};
+    updatedHand[cardType]--;
+    
+    setGameState(prev => ({
+      ...prev,
+      playerHand: updatedHand,
+      canPlay: false
+    }));
+
+    socket.send(JSON.stringify({
+      type: 'make_move',
+      gameId: gameState.gameId,
+      move: cardType
+    }));
   };
 
   // Card Component
