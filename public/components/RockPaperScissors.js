@@ -1,36 +1,21 @@
 const RockPaperScissors = () => {
+  // State and constants
   const [gameState, setGameState] = React.useState({
     gameId: null,
     playerId: null,
     status: 'initial',
-    playerHand: { rock: 0, paper: 0, scissors: 0 },
-    opponentHand: { rock: 0, paper: 0, scissors: 0 },
+    playerHand: null,
+    opponentHand: null,
     playerChoice: null,
     opponentChoice: null,
     playerScore: 0,
     opponentScore: 0,
     round: 1,
-    currentTurn: 'player1',
+    currentTurn: null,
     moveHistory: [],
     playerName: '',
     opponentName: 'Opponent',
   });
-
-  const generateHand = () => {
-    const hand = { rock: 0, paper: 0, scissors: 0 };
-    let remaining = 15;
-    
-    ['rock', 'paper', 'scissors'].forEach((type, index, array) => {
-      if (index === array.length - 1) {
-        hand[type] = remaining;
-      } else {
-        const amount = Math.floor(Math.random() * (remaining - (array.length - index - 1))) + 1;
-        hand[type] = amount;
-        remaining -= amount;
-      }
-    });
-    return hand;
-  };
 
   const [socket, setSocket] = React.useState(null);
   const [joinGameId, setJoinGameId] = React.useState('');
@@ -43,6 +28,20 @@ const RockPaperScissors = () => {
     scissors: '✌️'
   };
 
+  // Generate initial hand of cards
+  const generateHand = () => {
+    return {
+      'regular-rock': 3,
+      'regular-paper': 3,
+      'regular-scissors': 3,
+      'upgraded-rock': 1,
+      'upgraded-paper': 1,
+      'upgraded-scissors': 1,
+      'joker': 1
+    };
+  };
+
+  // WebSocket setup
   React.useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host;
@@ -57,6 +56,7 @@ const RockPaperScissors = () => {
     return () => ws.close();
   }, []);
 
+  // Handle incoming messages
   const handleGameMessage = (data) => {
     switch (data.type) {
       case 'game_created':
@@ -75,57 +75,82 @@ const RockPaperScissors = () => {
       case 'game_joined':
         setGameState(prev => ({
           ...prev,
-          status: 'playing',
+          status: prev.playerId === 'player1' ? 'playing' : 'waiting',
           opponentName: data.opponentName,
-          playerHand: generateHand(),
+          playerHand: prev.playerHand || generateHand(),
           currentTurn: 'player1'
         }));
-        setMessage(prev.playerId === 'player1' ? 'Your turn!' : "Opponent's turn!");
+        setMessage(data.currentTurn === gameState.playerId ? 'Your turn!' : "Opponent's turn!");
         break;
 
-      case 'move_made':
-        const isMyTurn = data.nextTurn === gameState.playerId;
+      case 'your_turn':
         setGameState(prev => ({
           ...prev,
-          currentTurn: data.nextTurn,
-          status: 'playing'
+          status: 'playing',
+          currentTurn: prev.playerId
         }));
-        setMessage(isMyTurn ? 'Your turn!' : "Opponent's turn!");
+        setMessage('Your turn!');
         break;
 
-      case 'round_result':
+      case 'waiting_for_opponent':
         setGameState(prev => ({
           ...prev,
+          status: 'waiting',
+          currentTurn: prev.playerId === 'player1' ? 'player2' : 'player1'
+        }));
+        setMessage("Waiting for opponent's move...");
+        break;
+
+      case 'round_complete':
+        const isWinner = data.result === gameState.playerId;
+        const isTie = data.result === 'tie';
+        
+        setGameState(prev => ({
+          ...prev,
+          status: 'playing',
           playerScore: data.scores[prev.playerId],
           opponentScore: data.scores[prev.playerId === 'player1' ? 'player2' : 'player1'],
-          round: data.round,
+          round: data.round + 1,
           currentTurn: 'player1',
           moveHistory: [...prev.moveHistory, {
             round: data.round,
             playerMove: data.moves[prev.playerId],
             opponentMove: data.moves[prev.playerId === 'player1' ? 'player2' : 'player1'],
-            result: data.winner === prev.playerId ? 'win' : data.winner === 'tie' ? 'tie' : 'lose'
+            result: isWinner ? 'win' : isTie ? 'tie' : 'lose'
           }]
         }));
-        setMessage(`Round ${data.round} finished! ${
-          data.winner === 'tie' ? "It's a tie!" : 
-          data.winner === gameState.playerId ? 'You won!' : 'Opponent won!'
+
+        setMessage(`Round ${data.round} - ${
+          isTie ? "It's a tie!" : 
+          isWinner ? '🎉 You won!' : 'Opponent won!'
         }`);
         break;
 
       case 'game_over':
+        const finalWinner = data.winner === gameState.playerId;
         setGameState(prev => ({
           ...prev,
           status: 'game_over'
         }));
         setMessage(
           data.winner === 'tie' ? "Game Over - It's a tie!" :
-          data.winner === gameState.playerId ? 'Game Over - You won! 🎉' : 'Game Over - Opponent won!'
+          finalWinner ? 'Game Over - You won! 🎉' : 'Game Over - Opponent won!'
         );
+        break;
+
+      case 'player_disconnected':
+        setMessage('Opponent disconnected. Please start a new game.');
+        setGameState(prev => ({ 
+          ...prev, 
+          status: 'initial',
+          playerHand: null,
+          moveHistory: []
+        }));
         break;
     }
   };
 
+  // Game actions
   const createGame = () => {
     if (!playerName.trim()) {
       setMessage('Please enter your name first!');
@@ -151,11 +176,12 @@ const RockPaperScissors = () => {
     }
   };
 
-  const makeMove = (choice) => {
-    const isMyTurn = gameState.currentTurn === gameState.playerId;
-    if (gameState.playerHand[choice] > 0 && socket && isMyTurn) {
+  const makeMove = (cardType) => {
+    if (gameState.playerHand[cardType] > 0 && 
+        socket && 
+        gameState.currentTurn === gameState.playerId) {
       const updatedHand = {...gameState.playerHand};
-      updatedHand[choice]--;
+      updatedHand[cardType]--;
       
       setGameState(prev => ({
         ...prev,
@@ -166,17 +192,64 @@ const RockPaperScissors = () => {
       socket.send(JSON.stringify({
         type: 'make_move',
         gameId: gameState.gameId,
-        move: choice
+        move: cardType
       }));
     }
   };
 
-  const isMyTurn = gameState.currentTurn === gameState.playerId;
+  // Card Component
+  const CardComponent = ({ type, count, onClick, disabled }) => {
+    const [cardType, cardName] = type.split('-');
+    const isJoker = type === 'joker';
+    
+    const getCardStyle = () => {
+      if (disabled || count === 0) return 'bg-gray-300 cursor-not-allowed';
+      if (isJoker) return 'bg-gradient-to-br from-purple-400 to-pink-400 hover:brightness-110';
+      if (cardType === 'upgraded') return 'bg-gradient-to-br from-blue-400 to-cyan-400 hover:brightness-110';
+      return 'bg-gradient-to-br from-pink-400 to-orange-400 hover:brightness-110';
+    };
 
-  // Rest of the component code (CardComponent and render) stays the same
-  // Just update the card disabled condition to:
-  // disabled={!isMyTurn || count === 0}
+    const getBorderStyle = () => {
+      if (disabled || count === 0) return 'border-gray-200';
+      if (isJoker) return 'border-purple-500';
+      if (cardType === 'upgraded') return 'border-blue-500';
+      return 'border-yellow-300';
+    };
 
+    return (
+      <div 
+        onClick={() => !disabled && count > 0 && onClick(type)}
+        className={`
+          relative w-40 h-56 rounded-2xl 
+          ${getCardStyle()}
+          transform transition-all duration-200 hover:scale-105
+          flex flex-col items-center justify-center border-8
+          ${getBorderStyle()}
+          shadow-xl
+        `}
+      >
+        <div className="text-6xl mb-4">
+          {isJoker ? '🃏' : cardIcons[cardName]}
+        </div>
+        <div className="text-xl capitalize font-bold text-white">
+          {isJoker ? 'Joker' : cardName}
+          {cardType === 'upgraded' && (
+            <span className="text-blue-200">+</span>
+          )}
+        </div>
+        <div className={`
+          absolute -top-4 -right-4 w-12 h-12 rounded-full 
+          ${isJoker ? 'bg-purple-500' : 'bg-blue-500'} 
+          flex items-center justify-center text-white text-xl font-bold 
+          border-4 ${getBorderStyle()} shadow-lg`}
+        >
+          {count}
+        </div>
+      </div>
+    );
+  };
+
+  // Render game board
   return (
     <div className="min-h-screen p-4 flex bg-gradient-to-b from-blue-400 to-purple-400">
       {/* Move History Sidebar */}
@@ -270,40 +343,27 @@ const RockPaperScissors = () => {
               </div>
 
               <div className="text-center text-xl font-bold text-blue-600">
-                {isMyTurn ? "It's your turn!" : "Waiting for opponent's move..."}
+                {gameState.currentTurn === gameState.playerId 
+                  ? "It's your turn!" 
+                  : "Waiting for opponent's move..."}
               </div>
 
-              <div>
-                <h2 className="text-2xl font-bold mb-6 text-blue-600">Your Cards</h2>
-                <div className="flex flex-wrap gap-6 justify-center">
-                  {['rock', 'paper', 'scissors'].map((type) => (
-                    <div 
-                      key={type}
-                      onClick={() => !(!isMyTurn || gameState.playerHand[type] === 0) && makeMove(type)}
-                      className={`
-                        relative w-40 h-56 rounded-2xl 
-                        ${!isMyTurn || gameState.playerHand[type] === 0
-                          ? 'bg-gray-300 cursor-not-allowed' 
-                          : 'bg-gradient-to-br from-pink-400 to-orange-400 hover:from-pink-300 hover:to-orange-300 cursor-pointer'
-                        }
-                        transform transition-all duration-200 hover:scale-105
-                        flex flex-col items-center justify-center border-8
-                        ${!isMyTurn || gameState.playerHand[type] === 0
-                          ? 'border-gray-200'
-                          : 'border-yellow-300'
-                        }
-                        shadow-xl
-                      `}
-                    >
-                      <div className="text-6xl mb-4">{cardIcons[type]}</div>
-                      <div className="text-xl capitalize font-bold text-white">{type}</div>
-                      <div className="absolute -top-4 -right-4 w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl font-bold border-4 border-yellow-300 shadow-lg">
-                        {gameState.playerHand[type]}
-                      </div>
-                    </div>
-                  ))}
+              {gameState.playerHand && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-6 text-blue-600">Your Cards</h2>
+                  <div className="flex flex-wrap gap-6 justify-center">
+                    {Object.entries(gameState.playerHand).map(([type, count]) => (
+                      <CardComponent
+                        key={type}
+                        type={type}
+                        count={count}
+                        onClick={makeMove}
+                        disabled={gameState.currentTurn !== gameState.playerId}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -319,6 +379,27 @@ const RockPaperScissors = () => {
               >
                 Play Again
               </button>
+            </div>
+          )}
+
+          {/* Card Type Legend */}
+          {(gameState.status === 'playing' || gameState.status === 'waiting') && (
+            <div className="mt-8 p-4 bg-gray-100 rounded-xl">
+              <h3 className="text-xl font-bold text-blue-600 mb-4">Card Types:</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center">
+                  <div className="w-4 h-4 rounded-full border-4 border-yellow-300 mr-2"></div>
+                  <span className="text-gray-700">Regular Cards</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 rounded-full border-4 border-blue-500 mr-2"></div>
+                  <span className="text-gray-700">Upgraded Cards (Beats same regular card)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 rounded-full border-4 border-purple-500 mr-2"></div>
+                  <span className="text-gray-700">Joker (Beats upgraded, loses to regular)</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
